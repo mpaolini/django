@@ -1109,6 +1109,13 @@ class Query(object):
         # Add the aggregate to the query
         aggregate.add_to_query(self, alias, col=col, source=source, is_summary=is_summary)
 
+    # Plan:
+    #    1. move names_to_path call in the beginning of add_filter (but after lookup resolution)
+    #    2. do lookup resolution in names_to_path
+    #    3. resolve the lookups from fields
+    #    4. Introduce Lookup object
+    #    5. Introduce backend.lookups (that is, move the implementation of the lookup
+    #       in there)
     def add_filter(self, filter_expr, connector=AND, negate=False,
             can_reuse=None, force_having=False):
         """
@@ -1188,18 +1195,19 @@ class Query(object):
 
         opts = self.get_meta()
         alias = self.get_initial_alias()
-        allow_many = not negate
+        split_multijoin = negate
+        path, field, target, multijoin_pos = self.names_to_path(
+            parts, opts, allow_explicit_fk=True, multijoin_break=split_multijoin)
 
-        try:
-            field, target, opts, join_list, path = self.setup_joins(
-                    parts, opts, alias, can_reuse, allow_many,
-                    allow_explicit_fk=True)
-            if can_reuse is not None:
-                can_reuse.update(join_list)
-        except MultiJoin as e:
-            self.split_exclude(filter_expr, LOOKUP_SEP.join(parts[:e.level]),
+        if split_multijoin and multijoin_pos is not None:
+            self.split_exclude(filter_expr, LOOKUP_SEP.join(parts[:multijoin_pos+1]),
                     can_reuse)
             return
+        else:
+            _, join_list, path = self._setup_joins(
+                path, opts, alias, can_reuse)
+        if can_reuse is not None:
+            can_reuse.update(join_list)
 
         if (lookup_type == 'isnull' and value is True and not negate and
                 len(join_list) > 1):
@@ -1307,8 +1315,7 @@ class Query(object):
         if self.filter_is_sticky:
             self.used_aliases = used_aliases
 
-    def names_to_path(self, names, opts, allow_many=False,
-                      allow_explicit_fk=True):
+    def names_to_path(self, names, opts, allow_explicit_fk=True, multijoin_break=False):
         """
         Walks the names path and turns them PathInfo tuples. Note that a
         single name in 'names' can generate multiple PathInfos (m2m for
@@ -1364,22 +1371,23 @@ class Query(object):
                 # Local non-relational field.
                 final_field = target = field
                 break
+
         multijoin_pos = None
         for m2mpos, pathinfo in enumerate(path):
             if pathinfo.m2m:
                 multijoin_pos = m2mpos
                 break
 
-        if pos != len(names) - 1:
+        if pos != len(names) - 1 and not (multijoin_pos and multijoin_break):
             if pos == len(names) - 2:
                 raise FieldError(
                     "Join on field %r not permitted. Did you misspell %r for "
                     "the lookup type?" % (name, names[pos + 1]))
             else:
                 raise FieldError("Join on field %r not permitted." % name)
-        if multijoin_pos is not None and len(path) >= multijoin_pos and not allow_many:
-            raise MultiJoin(multijoin_pos + 1)
-        return path, final_field, target
+        if multijoin_pos:
+            multijoin_pos = None if len(path) < multijoin_pos else multijoin_pos
+        return path, final_field, target, multijoin_pos
 
     def setup_joins(self, names, opts, alias, can_reuse=None, allow_many=True,
                     allow_explicit_fk=False):
@@ -1410,13 +1418,19 @@ class Query(object):
         conversions (convert 'obj' in fk__id=obj to pk val using the foreign
         key field for example).
         """
+        path, final_field, target, multijoin_pos = self.names_to_path(
+            names, opts, allow_explicit_fk)
+        if multijoin_pos and not allow_many:
+            raise FieldError("Invalid field name: '%s'" % names[multijoin_pos])
+        opts, joins, path = self._setup_joins(path, opts, alias, can_reuse)
+        return final_field, target, opts, joins, path
+
+    def _setup_joins(self, path, opts, alias, can_reuse):
+        """
+        An internal version of setup_joins. Takes in PathInfos instead of names
+        and returns just the generated join aliases and options.
+        """
         joins = [alias]
-        # First, generate the path for the names
-        path, final_field, target = self.names_to_path(
-            names, opts, allow_many, allow_explicit_fk)
-        # Then, add the path to the query's joins. Note that we can't trim
-        # joins at this stage - we will need the information about join type
-        # of the trimmed joins.
         for pos, join in enumerate(path):
             opts = join.to_opts
             if join.direct:
@@ -1428,7 +1442,7 @@ class Query(object):
             alias = self.join(connection, reuse=reuse,
                               nullable=nullable, join_field=join.join_field)
             joins.append(alias)
-        return final_field, target, opts, joins, path
+        return opts, joins, path
 
     def trim_joins(self, target, joins, path):
         """
@@ -1595,8 +1609,6 @@ class Query(object):
                         joins = joins[:-1]
                 self.promote_joins(joins[1:])
                 self.select.append(SelectInfo((final_alias, col), field))
-        except MultiJoin:
-            raise FieldError("Invalid field name: '%s'" % name)
         except FieldError:
             if LOOKUP_SEP in name:
                 # For lookups spanning over relationships, show the error

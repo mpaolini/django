@@ -2137,6 +2137,28 @@ SQL equivalents::
 
     SELECT ... WHERE title REGEXP '(?i)^(an?|the) +'; -- SQLite
 
+
+.. _range-types-lookups:
+
+range types lookups
+~~~~~~~~~~~~~~~~~~~
+
+.. versionadded:: 1.5.1
+
+.. note::
+   Only in Postgresql >= 9.2
+
+These lookups can only be used on range fields:
+
+ - ``range_contains``
+ - ``range_contained``
+ - ``range_overlap`` (have points in common)
+ - ``range_slo`` stricty left of
+ - ``range_sro`` strictly right of
+ - ``range_nxro`` does not extend to the right of
+ - ``range_nxlo`` does not extend to the left of
+ - ``range_adjacent`` adjacent to
+
 .. _aggregation-functions:
 
 Aggregation functions

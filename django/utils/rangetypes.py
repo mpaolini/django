@@ -1,5 +1,7 @@
 '''
-Python range types inplementation.
+Python range types implementation.
+
+Also included some validation logic common to models and forms.
 '''
 
 import re
@@ -53,6 +55,7 @@ class AbstractRange(object):
 
     @classmethod
     def from_string(cls, stringval):
+        # XXX should we raise Value o Validation Error?
         mo = RANGE_RE.match(stringval)
         if not mo:
             raise ValueError('bad range format')
@@ -77,6 +80,7 @@ class AbstractRange(object):
 
     @classmethod
     def to_python(cls, value):
+        # XXX should we raise Value o Validation Error?
         if value is None:
             return value
         if isinstance(value, basestring):
@@ -93,12 +97,14 @@ class AbstractRange(object):
         if not isinstance(value, cls):
             msg = cls.error_messages['invalid_range'] % value
             raise ValidationError(msg)
+        return value
 
 def to_python_datetime(value):
     '''Convert a value into a datetime.
 
     copied from django/db/models/fields.py
     '''
+    # TODO: make even DateTimeField use this function
     error_messages = {
         'invalid': _(u"'%s' value has an invalid format. It must be in "
                      u"YYYY-MM-DD HH:MM[:ss[.uuuuuu]][TZ] format."),

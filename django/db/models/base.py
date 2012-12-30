@@ -628,12 +628,17 @@ class Model(object):
         Checks unique constraints on the model and raises ``ValidationError``
         if any failed.
         """
-        unique_checks, date_checks = self._get_unique_checks(exclude=exclude)
+        unique_checks, date_checks, overlap_checks =\
+            self._get_unique_checks(exclude=exclude)
 
         errors = self._perform_unique_checks(unique_checks)
         date_errors = self._perform_date_checks(date_checks)
+        overlap_errors = self._perform_overlap_checks(overlap_checks)
 
         for k, v in date_errors.items():
+            errors.setdefault(k, []).extend(v)
+
+        for k, v in overlap_errors.items():
             errors.setdefault(k, []).extend(v)
 
         if errors:
@@ -651,6 +656,7 @@ class Model(object):
         if exclude is None:
             exclude = []
         unique_checks = []
+        overlap_checks = []
 
         unique_togethers = [(self.__class__, self._meta.unique_together)]
         for parent_class in self._meta.parents.keys():
@@ -689,7 +695,9 @@ class Model(object):
                     date_checks.append((model_class, 'year', name, f.unique_for_year))
                 if f.unique_for_month and f.unique_for_month not in exclude:
                     date_checks.append((model_class, 'month', name, f.unique_for_month))
-        return unique_checks, date_checks
+                if f.disallow_overlap:
+                    overlap_checks.append((model_class, name))
+        return unique_checks, date_checks, overlap_checks
 
     def _perform_unique_checks(self, unique_checks):
         errors = {}
@@ -759,6 +767,38 @@ class Model(object):
                 )
         return errors
 
+    def _perform_overlap_checks(self, overlap_checks):
+        errors = {}
+
+        for model_class, overlap_check in overlap_checks:
+            # Try to look up an existing object with the same values as this
+            # object's values for all the overlap field.
+
+            f = self._meta.get_field(overlap_check)
+            lookup_value = getattr(self, f.attname)
+            if lookup_value is None:
+                # no value, skip the lookup
+                continue
+            if f.primary_key and not self._state.adding:
+                # no need to check for unique primary key when editing
+                continue
+            lookup_kwargs = {
+                '%s__range_overlap' % overlap_check: lookup_value
+                }
+            qs = model_class._default_manager.filter(**lookup_kwargs)
+
+            # Exclude the current object from the query if we are editing an
+            # instance (as opposed to creating a new one)
+            if not self._state.adding and self.pk is not None:
+                qs = qs.exclude(pk=self.pk)
+
+            if qs.exists():
+                errors.setdefault(overlap_check, [])\
+                    .append(self.overlap_error_message(model_class,
+                                                       overlap_check))
+
+        return errors
+
     def date_error_message(self, lookup_type, field, unique_for):
         opts = self._meta
         return _(u"%(field_name)s must be unique for %(date_field)s %(lookup)s.") % {
@@ -788,6 +828,17 @@ class Model(object):
             return _(u"%(model_name)s with this %(field_label)s already exists.") %  {
                 'model_name': unicode(model_name),
                 'field_label': unicode(field_labels)
+            }
+
+    def overlap_error_message(self, model_class, overlap_check):
+        opts = model_class._meta
+        model_name = capfirst(opts.verbose_name)
+
+        field = opts.get_field(overlap_check)
+        field_label = capfirst(field.verbose_name)
+        return field.error_messages['overlap'] %  {
+            'model_name': unicode(model_name),
+            'field_label': unicode(field_label)
             }
 
     def full_clean(self, exclude=None):

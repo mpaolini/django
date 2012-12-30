@@ -79,7 +79,7 @@ class Field(object):
             serialize=True, unique_for_date=None, unique_for_month=None,
             unique_for_year=None, choices=None, help_text='', db_column=None,
             db_tablespace=None, auto_created=False, validators=[],
-            error_messages=None):
+            error_messages=None, disallow_overlap=False):
         self.name = name
         self.verbose_name = verbose_name
         self.primary_key = primary_key
@@ -97,6 +97,7 @@ class Field(object):
         self.unique_for_date, self.unique_for_month = (unique_for_date,
                                                        unique_for_month)
         self.unique_for_year = unique_for_year
+        self.disallow_overlap = disallow_overlap
         self._choices = choices or []
         self.help_text = help_text
         self.db_column = db_column
@@ -306,7 +307,11 @@ class Field(object):
                 'endswith', 'iendswith', 'isnull'
             ):
             return value
-        elif lookup_type in ('exact', 'gt', 'gte', 'lt', 'lte'):
+        elif lookup_type in ('exact', 'gt', 'gte', 'lt', 'lte',
+                             'range_contains', 'range_contained',
+                             'range_overlap', 'range_slo', 'range_sro',
+                             'range_nxro', 'range_nxlo', 'range_adjacent'
+                             ):
             return self.get_prep_value(value)
         elif lookup_type in ('range', 'in'):
             return [self.get_prep_value(v) for v in value]
@@ -342,7 +347,10 @@ class Field(object):
         if lookup_type in ('regex', 'iregex', 'month', 'day', 'week_day',
                            'search'):
             return [value]
-        elif lookup_type in ('exact', 'gt', 'gte', 'lt', 'lte'):
+        elif lookup_type in ('exact', 'gt', 'gte', 'lt', 'lte',
+                             'range_contains', 'range_contained',
+                             'range_overlap', 'range_slo', 'range_sro',
+                             'range_nxro', 'range_nxlo', 'range_adjacent'):
             return [self.get_db_prep_value(value, connection=connection,
                                            prepared=prepared)]
         elif lookup_type in ('range', 'in'):

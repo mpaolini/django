@@ -32,6 +32,7 @@ class DatabaseCreation(BaseDatabaseCreation):
         'SmallIntegerField': 'smallint',
         'TextField':         'text',
         'TimeField':         'time',
+        'DateTimeRangeField': 'tstzrange', # only >= 9.2
     }
 
     def sql_table_creation_suffix(self):

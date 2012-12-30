@@ -5,6 +5,8 @@ QUERY_TERMS = dict([(x, None) for x in (
     'exact', 'iexact', 'contains', 'icontains', 'gt', 'gte', 'lt', 'lte', 'in',
     'startswith', 'istartswith', 'endswith', 'iendswith', 'range', 'year',
     'month', 'day', 'week_day', 'isnull', 'search', 'regex', 'iregex',
+    'range_contains', 'range_contained', 'range_overlap', 'range_slo',
+    'range_sro', 'range_nxro', 'range_nxlo', 'range_adjacent',
     )])
 
 # Size of each "chunk" for get_iterator calls.

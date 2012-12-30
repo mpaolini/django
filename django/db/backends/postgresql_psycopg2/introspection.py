@@ -20,8 +20,10 @@ class DatabaseIntrospection(BaseDatabaseIntrospection):
         1184: 'DateTimeField',
         1266: 'TimeField',
         1700: 'DecimalField',
+        3908: 'DateTimeRangeField',
+        3910: 'DateTimeRangeField',
     }
-        
+
     def get_table_list(self, cursor):
         "Returns a list of table names in the current database."
         cursor.execute("""

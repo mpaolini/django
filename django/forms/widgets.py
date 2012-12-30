@@ -487,6 +487,8 @@ class TimeInput(Input):
             pass
         return super(TimeInput, self)._has_changed(self._format_value(initial), data)
 
+class DateTimeRangeInput(Input):
+    input_type = 'text'
 
 # Defined at module level so that CheckboxInput is picklable (#17976)
 def boolean_check(v):

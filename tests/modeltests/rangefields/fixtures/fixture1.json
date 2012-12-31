@@ -1,0 +1,24 @@
+[
+    {	
+        "pk": 1,
+        "model": "rangefield.logevent",
+        "fields": {
+            "period": "[2006-06-16 12:00:00, 2006-06-16 12:30:00]",
+            "period_t": "2006-06-16 12:00:00"
+        }
+    },
+    {
+        "pk": 2,
+        "model": "rangefield.logevent",
+        "fields": {
+            "period": "(2006-06-16 12:30:00, 2006-06-16 13:00:00]"
+        }
+    },
+    {
+        "pk": 3,
+        "model": "rangefield.logevent",
+        "fields": {
+            "period": "(2006-06-16 13:00:00, 2006-06-16 13:30:00]"
+        }
+    }
+]

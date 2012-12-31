@@ -207,3 +207,28 @@ class DatabaseOperations(BaseDatabaseOperations):
     def bulk_insert_sql(self, fields, num_values):
         items_sql = "(%s)" % ", ".join(["%s"] * len(fields))
         return "VALUES " + ", ".join([items_sql] * num_values)
+
+    def value_to_db_datetimerange(self, value, start_inclusive=True,
+                                  end_inclusive=True):
+        """
+        Transform a datetime value to an object compatible with what is expected
+        by the backend driver for datetime columns.
+        """
+        if value is None:
+            return None
+        return _format_range(
+            value.start,
+            value.end,
+            start_inclusive=value.start_inclusive,
+            end_inclusive=value.end_inclusive)
+
+def _format_range(start, end, start_inclusive, end_inclusive):
+    """
+    Formats a range into a string taking bound inclusion into account.
+    """
+    return '%s%s, %s%s' % (
+        '[' if start_inclusive else '(',
+        start if start is not None else '',
+        end if end is not None else '',
+        ']' if end_inclusive else ')',
+        )

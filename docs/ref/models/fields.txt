@@ -1205,3 +1205,37 @@ accepted by :class:`ForeignKey`, plus one extra argument:
     link back to the parent class, rather than the extra
     ``OneToOneField`` which would normally be implicitly created by
     subclassing.
+
+Range Fields
+============
+
+.. module:: django.db.models.fields.rangefields
+   :synopsis: Range field types
+
+.. currentmodule:: django.db.models
+
+.. versionadded:: 1.5.1
+
+.. note::
+
+   Available only in Postgresql >= 9.2
+
+Django also defines a set of fields that represent ranges.
+This fields represent a range in a single value and allow
+a whole class of specialized query semantics such as overlap or
+containment.
+
+:ref:`Range types lookups <range-types-lookups>` are a specialized
+set of lookups that can be used with this fields.
+
+``DateTimeRangeField``
+----------------------
+
+.. class:: DateTimeRangeField([disallow_overlap=False, **options])
+
+A date and time, represented in Python by a
+:class:`~django.db.utils.DateTimeRange` instance.
+Range bounds can be inclusive or exclusive.
+
+The default form widget for this field is a single
+:class:`~django.forms.TextInput`.

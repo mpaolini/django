@@ -5,6 +5,7 @@ Requires psycopg 2: http://initd.org/projects/psycopg2
 """
 import logging
 import sys
+import re
 
 from django.db import utils
 from django.db.backends import *
@@ -18,6 +19,7 @@ from django.utils.encoding import force_str
 from django.utils.safestring import SafeText, SafeBytes
 from django.utils import six
 from django.utils.timezone import utc
+from django.utils.rangetypes import DateTimeRange
 
 try:
     import psycopg2 as Database
@@ -28,6 +30,28 @@ except ImportError as e:
 
 DatabaseError = Database.DatabaseError
 IntegrityError = Database.IntegrityError
+
+DATERANGE_RE = re.compile(
+    r'^([\[\(])' # range start "[" inclusive or "(" exclusive
+    r'"(.*)","(.*)"' # range start and end values
+    r'([\]\)])$') # range stop (just like range start)
+
+def cast_date_range(value, cur):
+    if value is None:
+        return None
+    mo = DATERANGE_RE.match(value)
+    if not mo:
+        raise ValueError('bad range format')
+    groups = mo.groups()
+    return DateTimeRange(psycopg2.DATETIME(groups[1], cur),
+                         psycopg2.DATETIME(groups[2], cur),
+                         start_inclusive=groups[0]=='[',
+                         end_inclusive=groups[3]==']')
+
+DATE_RANGE = psycopg2.extensions.new_type((3908, 3910),
+                                          'DATERANGE',
+                                          cast_date_range)
+psycopg2.extensions.register_type(DATE_RANGE)
 
 psycopg2.extensions.register_type(psycopg2.extensions.UNICODE)
 psycopg2.extensions.register_adapter(SafeBytes, psycopg2.extensions.QuotedString)
@@ -103,6 +127,14 @@ class DatabaseWrapper(BaseDatabaseWrapper):
         'endswith': 'LIKE %s',
         'istartswith': 'LIKE UPPER(%s)',
         'iendswith': 'LIKE UPPER(%s)',
+        'range_contains': '@> %s',
+        'range_contained': '<@ %s',
+        'range_overlap': '&& %s',
+        'range_slo': '<< %s',
+        'range_sro': '>> %s',
+        'range_nxro': '&< %s',
+        'range_nxlo': '&> %s',
+        'range_adjacent': '-|- %s',
     }
 
     def __init__(self, *args, **kwargs):

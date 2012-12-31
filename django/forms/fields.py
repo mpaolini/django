@@ -21,12 +21,14 @@ from django.forms.util import ErrorList, from_current_timezone, to_current_timez
 from django.forms.widgets import (TextInput, PasswordInput, HiddenInput,
     MultipleHiddenInput, ClearableFileInput, CheckboxInput, Select,
     NullBooleanSelect, SelectMultiple, DateInput, DateTimeInput, TimeInput,
-    SplitDateTimeWidget, SplitHiddenDateTimeWidget, FILE_INPUT_CONTRADICTION)
+    SplitDateTimeWidget, SplitHiddenDateTimeWidget, FILE_INPUT_CONTRADICTION,
+    DateTimeRangeInput)
 from django.utils import formats
 from django.utils.encoding import smart_text, force_text
 from django.utils.ipv6 import clean_ipv6_address
 from django.utils import six
 from django.utils.translation import ugettext_lazy as _
+from django.utils.rangetypes import DateTimeRange
 
 # Provide this import for backwards compatibility.
 from django.core.validators import EMPTY_VALUES
@@ -39,7 +41,8 @@ __all__ = (
     'BooleanField', 'NullBooleanField', 'ChoiceField', 'MultipleChoiceField',
     'ComboField', 'MultiValueField', 'FloatField', 'DecimalField',
     'SplitDateTimeField', 'IPAddressField', 'GenericIPAddressField', 'FilePathField',
-    'SlugField', 'TypedChoiceField', 'TypedMultipleChoiceField'
+    'SlugField', 'TypedChoiceField', 'TypedMultipleChoiceField',
+    'DateTimeRangeField'
 )
 
 
@@ -429,6 +432,24 @@ class DateTimeField(BaseTemporalField):
 
     def strptime(self, value, format):
         return datetime.datetime.strptime(value, format)
+
+class DateTimeRangeField(Field):
+    widget = DateTimeRangeInput
+
+    default_error_messages = {
+        'invalid': _(u'Enter a valid datetime range.'),
+    }
+
+    def to_python(self, value):
+        """
+        Validates that the input can be converted to a datetime. Returns a
+        Python datetime.datetime object.
+        """
+        if value in validators.EMPTY_VALUES:
+            return None
+        # from_current_timezone logic implemented inside here:
+        value = DateTimeRange.to_python(value, make_aware=True)
+        return value
 
 class RegexField(CharField):
     def __init__(self, regex, max_length=None, min_length=None, error_message=None, *args, **kwargs):
